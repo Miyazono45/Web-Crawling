@@ -9,12 +9,19 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
+import pandas as pd
+
 # User Input
 price = input("Harga VGA nya (Angka saja -> satuan juta) = ")
 newOrUsed = input("Preferensi Bekas / Baru = ")
 
 # Penyimpanan Data (Nama Barang, Harga Barang, Link, Kondisi, Nama Toko)
+dtypeFirstData = [('name', '<U100'), ('price', '<U25'),
+                  ('link', '<U250'), ('condition', '<U10'), ('store', '<U25')]
 firstData = np.zeros([1, 5], dtype='<U250')
+
+# For data cleaning and checking if page was visited
+dataRaw = []
 visited = []
 
 dataRTX = np.zeros([1, 5], dtype='<U250')
@@ -35,7 +42,6 @@ def crawlData():
     driver = webdriver.Chrome(options=option)
     driver.implicitly_wait(10)
     driver.get(primaryUrl)
-    # driver =WebDriverWait()
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
     primary_item = soup.findAll('div', attrs={'class': 'css-1asz3by'})
@@ -56,7 +62,7 @@ def crawlData():
             print("DATA IS DUPLICATE")
             return
 
-         # Clean Information Apart from RTX GTX RX and ARC, it will be removed
+        # Clean Information Apart from RTX GTX RX and ARC, it will be removed
         if "GTX" in item_name:
             addPR = "GTX"
         elif "RTX" in item_name:
@@ -90,21 +96,25 @@ def crawlData():
         if second_item_2.get_attribute("href") not in visited:
             # add mark (visited) which store is has been visited
             visited.append(second_item_2.get_attribute("href"))
-        # else:
-        #     return
-
-        print("Harga Asli : " + item_price)
 
         # Navigate to Product Page Link ============================================>
         # Collect Name of VGA
         try:
             # If "RTX 3060 TI"
-            patternRegex = addPR + r'(\s)?\d{4}( TI)?'
+            patternRegex = addPR + r'(\s)?\d{3,4}(\s)?(TI)?(XT)?'
             res = re.search(patternRegex, item_name, re.IGNORECASE)
         except:
-            # If Intel GPU
+            # If Intel GPU / AMD
+            # try:
             patternRegexIntel = r'intel\sarc\s[A-Z]([0-9]{3})'
             res = re.search(patternRegexIntel, item_name, re.IGNORECASE)
+            # except:
+            #     try:
+            #         patternRX = r'RX\d{3,4}XT'
+            #         res = re.search(patternRX, item_name, re.IGNORECASE)
+            #     except:
+            #         patternRX = r'RX{3,4}(XT)?'
+            #         res = re.search(patternRX, item_name, re.IGNORECASE)
 
         # Sorted by "Harga terendah"
         driver.implicitly_wait(10)
@@ -123,33 +133,97 @@ def crawlData():
         whichPage = 0
         # Mencari div berapa yang merupakan item tersebut
         for i in range(len(container_page2)):
-            item_price_page2 = container_page2[i].find_element(
+            self_item_price_page2 = container_page2[i].find_element(
                 By.CLASS_NAME, "prd_link-product-price")
-            if item_price_page2.text == item_price:
+            if self_item_price_page2.text == item_price:
                 whichPage = i+1
 
-        print("Item ada di : " + str(whichPage))
+        # print("Item ada di : " + str(whichPage))
 
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        secondary_item = soup.findAll('div', attrs={'class': 'css-1asz3by'})
         # Finding One-by-One items
-        for j in range(whichPage-1):
-            div_page_found = driver.find_element(
-                By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[4]/div/div[2]/div[1]/div[" + str(j+1) + "]")
-            item_price_found = div_page_found.find_element(
-                By.CLASS_NAME, "prd_link-product-price")
-            print("Item " + str(j+1) + " : " + item_price_found.text)
+        start_item = 0
+
+        for j, sub_item_2 in enumerate(secondary_item[start_item:whichPage], start=start_item):
+            time.sleep(3)
+
+            # Find Name,Price,Link
+            item_name_page2 = sub_item_2.find(
+                'div', attrs={'class': 'prd_link-product-name'}).text
+            item_price_page2 = sub_item_2.find(
+                'div', attrs={'class': 'prd_link-product-price'}).text
+            item_link_page2 = sub_item_2.find(
+                'a', attrs={'class': 'pcv3__info-content'}).get('href')
+
+            if "GTX" in item_name:
+                addPR = "GTX"
+            elif "RTX" in item_name:
+                addPR = "RTX"
+            elif "RX" in item_name:
+                addPR = "RX"
+            elif "Arc" or "ARC" in item_name:
+                continue
+            else:
+                return
+
+            # Navigate to Sub_Item_Page2 Link =================================================>
+            driver.implicitly_wait(10)
+            driver.get(item_link_page2)
+
+            # Get item_condition and item_store
+            item_condition_temp_2 = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "css-bwcbiv")))
+            item_condition_page2 = item_condition_temp_2.find_element(
+                By.CLASS_NAME, "main").text
+            second_item_2_2 = driver.find_element(By.CLASS_NAME, "css-1sl4zpk")
+            item_store_page2 = second_item_2_2.find_element(
+                By.TAG_NAME, "h2").text
+
+            # Wrap Up for append in numpy
+            item_container_page2 = [item_name_page2, item_price_page2,
+                                    item_link_page2, item_condition_page2, item_store_page2]
+
+            # Add Data to firstData (Primary Data)
+            firstData = np.append(firstData, [item_container_page2], axis=0)
 
     driver.close()
 
 
 crawlData()
-print(firstData)
-print("")
-print(visited)
 
-# for i, dataWhat in enumerate(data):
-#     if "RTX" in dataWhat[0]:
-#         dataRTX = np.append(dataRTX, [dataWhat], axis=0)
-#     elif "RX" in dataWhat[0]:
-#         dataRX = np.append(dataRX, [dataWhat], axis=0)
-#     elif "GTX" in dataWhat[0]:
-#         dataGTX = np.append(dataGTX, [dataWhat], axis=0)
+dataSort = firstData[firstData[:, 1].argsort()]
+
+for i, dataWhat in enumerate(dataSort):
+    if "RTX" in dataWhat[0]:
+        dataRTX = np.append(dataRTX, [dataWhat], axis=0)
+    elif "RX" in dataWhat[0]:
+        dataRX = np.append(dataRX, [dataWhat], axis=0)
+    elif "GTX" in dataWhat[0]:
+        dataGTX = np.append(dataGTX, [dataWhat], axis=0)
+
+# pd.set_option('display.max_columns', None)
+pd.set_option('display.max_colwidth', None)
+datasetRTX = pd.DataFrame(dataRTX, columns=[
+    'Nama', 'Harga', 'Link', 'Kondisi', 'Toko'])
+# datasetRTX.style.set_caption("RTX")
+datasetRTX.to_csv("result.csv")
+
+datasetRX = pd.DataFrame(dataRX, columns=[
+    'Nama', 'Harga', 'Link', 'Kondisi', 'Toko'])
+# datasetRX.style.set_caption("RX")
+datasetRX.to_csv("result.csv")
+
+datasetGTX = pd.DataFrame(dataGTX, columns=[
+    'Nama', 'Harga', 'Link', 'Kondisi', 'Toko'])
+# datasetGTX.style.set_caption("GTX")
+
+print(datasetRTX)
+print(datasetRX)
+print(datasetGTX)
+
+
+# Kelemahan
+# - Saat DFS dijalankan, tidak bisa membedakan mana stock kosong mana yang tersedia
+# - Ketika terdapat barang yang identik dengan barang awal melebihi dari 10, maka akan langsung tereliminasi (Terkadang)
+# - terhitung lama karena harus membuka browser satu persatu (Mode Headless tidak bekerja dengan baik)
