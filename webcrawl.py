@@ -1,5 +1,6 @@
 import time
 import re
+from tqdm import tqdm
 import numpy as np
 from selenium import webdriver
 from bs4 import BeautifulSoup
@@ -14,6 +15,7 @@ import pandas as pd
 # User Input
 price = input("Harga VGA nya (Angka saja -> satuan juta) = ")
 newOrUsed = input("Preferensi Bekas / Baru = ")
+limitLoop = input("Batasan Awal = ")
 
 # Penyimpanan Data (Nama Barang, Harga Barang, Link, Kondisi, Nama Toko)
 dtypeFirstData = [('name', '<U100'), ('price', '<U25'),
@@ -46,8 +48,10 @@ def crawlData():
     soup = BeautifulSoup(driver.page_source, "html.parser")
     primary_item = soup.findAll('div', attrs={'class': 'css-1asz3by'})
 
+    starter = 0
+
     # For Halaman Awal
-    for i, sub_item in enumerate(primary_item):
+    for i, sub_item in tqdm(enumerate(primary_item[starter:int(limitLoop)], start=starter)):
         # Find Items on First Page
         item_name = sub_item.find(
             'div', attrs={'class': 'prd_link-product-name'}).text
@@ -105,16 +109,8 @@ def crawlData():
             res = re.search(patternRegex, item_name, re.IGNORECASE)
         except:
             # If Intel GPU / AMD
-            # try:
             patternRegexIntel = r'intel\sarc\s[A-Z]([0-9]{3})'
             res = re.search(patternRegexIntel, item_name, re.IGNORECASE)
-            # except:
-            #     try:
-            #         patternRX = r'RX\d{3,4}XT'
-            #         res = re.search(patternRX, item_name, re.IGNORECASE)
-            #     except:
-            #         patternRX = r'RX{3,4}(XT)?'
-            #         res = re.search(patternRX, item_name, re.IGNORECASE)
 
         # Sorted by "Harga terendah"
         driver.implicitly_wait(10)
@@ -124,10 +120,12 @@ def crawlData():
         # Find main class
 
         div_container_page2 = WebDriverWait(driver, 10).until(EC.presence_of_element_located(
-            (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[4]/div/div[2]/div[1]")))
+            ((By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[4]/div/div[2]/div[1]"))))
 
         # PLEASE AJUST THIS
-        time.sleep(3)
+        # time.sleep(3)
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located(
+            By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[4]/div/div[2]/div[1]/div"))
         container_page2 = div_container_page2.find_elements(By.XPATH, "./div")
 
         whichPage = 0
@@ -145,8 +143,10 @@ def crawlData():
         # Finding One-by-One items
         start_item = 0
 
-        for j, sub_item_2 in enumerate(secondary_item[start_item:whichPage], start=start_item):
-            time.sleep(3)
+        for j, sub_item_2 in tqdm(enumerate(secondary_item[start_item:whichPage], start=start_item)):
+            # time.sleep(3)
+            WebDriverWait(driver, 15).until(lambda h: h.find_element(
+                By.CLASS_NAME, "prd_link-product-name"))
 
             # Find Name,Price,Link
             item_name_page2 = sub_item_2.find(
@@ -168,11 +168,11 @@ def crawlData():
                 return
 
             # Navigate to Sub_Item_Page2 Link =================================================>
-            driver.implicitly_wait(10)
+            driver.implicitly_wait(20)
             driver.get(item_link_page2)
 
             # Get item_condition and item_store
-            item_condition_temp_2 = WebDriverWait(driver, 10).until(
+            item_condition_temp_2 = WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.CLASS_NAME, "css-bwcbiv")))
             item_condition_page2 = item_condition_temp_2.find_element(
                 By.CLASS_NAME, "main").text
@@ -206,22 +206,19 @@ for i, dataWhat in enumerate(dataSort):
 pd.set_option('display.max_colwidth', None)
 datasetRTX = pd.DataFrame(dataRTX, columns=[
     'Nama', 'Harga', 'Link', 'Kondisi', 'Toko'])
-# datasetRTX.style.set_caption("RTX")
-datasetRTX.to_csv("result.csv")
+datasetRTX.to_csv("result.csv", mode='a', index=False, header=False)
 
 datasetRX = pd.DataFrame(dataRX, columns=[
     'Nama', 'Harga', 'Link', 'Kondisi', 'Toko'])
-# datasetRX.style.set_caption("RX")
-datasetRX.to_csv("result.csv")
+datasetRX.to_csv("result.csv", mode='a', index=False, header=False)
 
 datasetGTX = pd.DataFrame(dataGTX, columns=[
     'Nama', 'Harga', 'Link', 'Kondisi', 'Toko'])
-# datasetGTX.style.set_caption("GTX")
+datasetGTX.to_csv("result.csv", mode='a', index=False, header=False)
 
 print(datasetRTX)
 print(datasetRX)
 print(datasetGTX)
-
 
 # Kelemahan
 # - Saat DFS dijalankan, tidak bisa membedakan mana stock kosong mana yang tersedia
