@@ -120,12 +120,10 @@ def crawlData():
         # Find main class
 
         div_container_page2 = WebDriverWait(driver, 10).until(EC.presence_of_element_located(
-            ((By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[4]/div/div[2]/div[1]"))))
+            (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[4]/div/div[2]/div[1]")))
 
         # PLEASE AJUST THIS
-        # time.sleep(3)
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located(
-            By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[4]/div/div[2]/div[1]/div"))
+        time.sleep(3)
         container_page2 = div_container_page2.find_elements(By.XPATH, "./div")
 
         whichPage = 0
@@ -144,9 +142,9 @@ def crawlData():
         start_item = 0
 
         for j, sub_item_2 in tqdm(enumerate(secondary_item[start_item:whichPage], start=start_item)):
-            # time.sleep(3)
-            WebDriverWait(driver, 15).until(lambda h: h.find_element(
-                By.CLASS_NAME, "prd_link-product-name"))
+            time.sleep(3)
+            # WebDriverWait(driver, 20).until(lambda h: h.find_element(
+            #     By.CLASS_NAME, "prd_link-product-name"))
 
             # Find Name,Price,Link
             item_name_page2 = sub_item_2.find(
