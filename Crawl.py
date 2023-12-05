@@ -18,81 +18,94 @@ from selenium.webdriver import ActionChains
 # pricemax = input('what is max price = ')
 
 
-urls = 'https://www.tokopedia.com'
+urls = 'https://www.tokopedia.com/search?'
 
-
+quer = 'VGA Graphic Card'
+min = '10000000'
+max = '11000000'
+quer = re.sub(" ", "%20", quer)
 
 driver = webdriver.Chrome()
-driver.get(urls)
-driver.find_element(By.TAG_NAME,'input')
-data_input = driver.find_element(By.CLASS_NAME,'css-3017qm')
-ActionChains(driver)\
-    .send_keys_to_element(data_input,'VGA Graphic Card')\
-    .key_down(Keys.RETURN)\
-    .perform()
+driver.get(urls + f'&ob=3&pmax={max}&pmin={min}&q={quer}')
+
 time.sleep(1.5)
-driver.current_url
+SCROLL_PAUSE_TIME = 0.5
 
-driver.find_element(By.CLASS_NAME,'css-1g467vj').click()
-driver.find_elements(By.CLASS_NAME, 'e83okfj5')
-driver.find_element(By.CSS_SELECTOR,'[data-item-text="Harga Terendah"]').click()
-time.sleep(1)
+# Get scroll height
+last_height = driver.execute_script("return document.body.scrollHeight")
 
-driver.current_url
+while True:
+    # Scroll down to bottom
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
-driver.find_element(By.CLASS_NAME, 'css-1cb34wj')
-min = driver.find_element(By.NAME,'pmin')
-ActionChains(driver)\
-    .send_keys_to_element(min,'0')\
-    .send_keys_to_element(min,'10000000')\
-    .key_down(Keys.RETURN)\
-    .perform()
-time.sleep(1)
-driver.find_element(By.CLASS_NAME, 'css-1cb34wj')
-max = driver.find_element(By.NAME,'pmax')
-ActionChains(driver)\
-    .send_keys_to_element(max,'0')\
-    .send_keys_to_element(max,'15000000')\
-    .key_down(Keys.RETURN)\
-    .perform()
-time.sleep(1)
+    # Wait to load page
+    time.sleep(SCROLL_PAUSE_TIME)
+
+    # Calculate new scroll height and compare with last scroll height
+    new_height = driver.execute_script("return document.body.scrollHeight")
+    if new_height == last_height:
+        break
+    last_height = new_height
+
 primaryUrl = driver.current_url
 
 page = 1
 
 visited = []
 def web_crawl(Url,page,mainUrl):
+    global quer
+    global urls
     # driver = webdriver.Chrome()
     print(f"crawling data in : {page} pages")
     time.sleep(1)
-
-    # Just A little bit more (I am Lazy)
-    if Url in visited:
+    soup =BeautifulSoup(driver.page_source, 'html.parser')
+    if Url in visited or soup.find(text="Oops, produk nggak ditemukan"):
           return
     visited.append(Url)
+    
     time.sleep(5)
-    driver.get(Url)
-    soup =BeautifulSoup(driver.page_source, 'html.parser')
     primary_item = soup.findAll('div', attrs={'class': 'css-1asz3by'})
     for i, sub_item in enumerate(primary_item):
-    
+    # Find Items on First Page
         item_name = sub_item.find(
             'div', attrs={'class': 'prd_link-product-name'}).text
         item_price = sub_item.find(
             'div', attrs={'class': 'prd_link-product-price'}).text
         item_link = sub_item.find(
            'a', attrs={'class': 'pcv3__info-content'}).get('href')
-            
-        print(item_name, item_price, item_link)       
+        print(i,item_name, item_price, item_link)   
+        
+        driver.get(item_link)
+        if item_link not in visited:
+             visited.append(item_link)
+        else:
+             return
+        time.sleep(5)
+       
+        soup  =  BeautifulSoup(driver.page_source, 'html.parser')
+        findStore = soup.find('a', attrs={'class': 'css-1sl4zpk'}).get('href')
+        quer = re.sub(" ", "%20", quer)
+        driver.implicitly_wait(10)
+        driver.get(str('https://www.tokopedia.com' + findStore + f'?q={quer}&sort=10'))
+        time.sleep(10)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        time.sleep(5)
+        prodinStore = soup.findAll('div',attrs={'class' : 'css-1asz3by'})
+        for j, sub_item in enumerate(prodinStore):
+            name = sub_item.find('div', attrs={'class':'prd_link-product-name'}).text
+            price = sub_item.find('div', attrs={'class':'prd_link-product-price'}).text
+            link = sub_item.find('a', attrs={'class':'pcv3__info-content'}).get('href')
+            print(link)
+            if link not in visited:
+                 visited.append(link)
+                 print(f'name = {name}, price = {price}, link = {link}')
+            elif link in visited:
+                 print('data is Duplicate')     
     page += 1
     newurl = mainUrl + f'&page={page}'
     print(newurl)
+    driver.get(newurl)
     web_crawl(newurl,page,primaryUrl)
-
-   
-        
-    
-
 
 web_crawl(primaryUrl,page,primaryUrl)
 print(visited)
